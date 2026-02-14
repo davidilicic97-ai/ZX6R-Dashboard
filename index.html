@@ -36,9 +36,9 @@ let bleDevice = null;
 let bleServer = null;
 let bleChar = null;
 
-// Check if Web Bluetooth is supported
+// Check Web Bluetooth support
 if (!navigator.bluetooth) {
-  document.getElementById('error').innerText = "Web Bluetooth not supported on this browser. Use Safari on iOS 13+.";
+  document.getElementById('error').innerText = "Web Bluetooth not supported. Use Safari on iOS 13+.";
 }
 
 // Connect button
@@ -49,10 +49,9 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
   document.getElementById('error').innerText = '';
 
   try {
-    // Must be inside user gesture
+    // iOS requires filters, not acceptAllDevices
     bleDevice = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true, // Show all nearby BLE devices
-      optionalServices: ['0000ffe0-0000-1000-8000-00805f9b34fb']
+      filters: [{ services: ['0000ffe0-0000-1000-8000-00805f9b34fb'] }]
     });
 
     bleDevice.addEventListener('gattserverdisconnected', () => {
@@ -61,6 +60,7 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
     });
 
     bleServer = await bleDevice.gatt.connect();
+
     const service = await bleServer.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
     bleChar = await service.getCharacteristic('0000ffe1-0000-1000-8000-00805f9b34fb');
 
@@ -69,18 +69,18 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
       bleChar.addEventListener('characteristicvaluechanged', handleNotifications);
     } catch(e) {
       console.warn('Notifications failed:', e);
-      document.getElementById('error').innerText = 'Notifications failed: ' + e.message;
+      document.getElementById('error').innerText = 'Notifications error: ' + e.message;
     }
 
     document.getElementById('status').innerText = 'Connected';
-  } catch(e) {
+  } catch (e) {
     console.error(e);
     document.getElementById('status').innerText = 'Disconnected';
-    document.getElementById('error').innerText = 'Connection Error: ' + e.message;
+    document.getElementById('error').innerText = 'Connection error: ' + e.message;
   }
 });
 
-// Handle incoming RPM notifications
+// Handle RPM notifications
 function handleNotifications(event) {
   const value = new TextDecoder().decode(event.target.value);
   if (value.startsWith('rpm=')) {
@@ -88,7 +88,7 @@ function handleNotifications(event) {
   }
 }
 
-// Safe BLE write function
+// Safe BLE write
 function sendBLE(msg) {
   if (bleChar && bleDevice && bleDevice.gatt.connected) {
     try {
