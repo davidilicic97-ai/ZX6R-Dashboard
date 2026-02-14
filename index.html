@@ -12,12 +12,14 @@ input[type=range] { width: 80%; }
 .value { font-weight:bold; color:#0f0; font-size:20px; }
 #rpm { font-size: 32px; color:#ff0; margin-top:20px; }
 #status { margin-top:10px; font-weight:bold; color:#0f0; }
+#error { color:#f00; font-weight:bold; margin-top:10px; }
 </style>
 </head>
 <body>
 <h1>ZX6R Rev Limiter</h1>
 <button id="connectBtn">Connect Bluetooth</button>
 <p id="status">Disconnected</p>
+<p id="error"></p>
 
 <label>Rev Limit: <span id="revVal" class="value">15000 RPM</span>
 <input type="range" id="revLimit" min="8000" max="16000" value="15000">
@@ -34,14 +36,22 @@ let bleDevice = null;
 let bleServer = null;
 let bleChar = null;
 
+// Check if Web Bluetooth is supported
+if (!navigator.bluetooth) {
+  document.getElementById('error').innerText = "Web Bluetooth not supported on this browser. Use Safari on iOS 13+.";
+}
+
 // Connect button
 document.getElementById('connectBtn').addEventListener('click', async () => {
+  if (!navigator.bluetooth) return;
+
+  document.getElementById('status').innerText = 'Connecting...';
+  document.getElementById('error').innerText = '';
+
   try {
-    document.getElementById('status').innerText = 'Connecting...';
-    
-    // Accept all devices for testing
+    // Must be inside user gesture
     bleDevice = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
+      acceptAllDevices: true, // Show all nearby BLE devices
       optionalServices: ['0000ffe0-0000-1000-8000-00805f9b34fb']
     });
 
@@ -59,33 +69,33 @@ document.getElementById('connectBtn').addEventListener('click', async () => {
       bleChar.addEventListener('characteristicvaluechanged', handleNotifications);
     } catch(e) {
       console.warn('Notifications failed:', e);
+      document.getElementById('error').innerText = 'Notifications failed: ' + e.message;
     }
 
     document.getElementById('status').innerText = 'Connected';
   } catch(e) {
     console.error(e);
-    document.getElementById('status').innerText = 'Connection Error: ' + e.message;
+    document.getElementById('status').innerText = 'Disconnected';
+    document.getElementById('error').innerText = 'Connection Error: ' + e.message;
   }
 });
 
 // Handle incoming RPM notifications
 function handleNotifications(event) {
   const value = new TextDecoder().decode(event.target.value);
-  if(value.startsWith('rpm=')) {
+  if (value.startsWith('rpm=')) {
     document.getElementById('rpm').innerText = value.slice(4);
   }
 }
 
-// Safe BLE write
+// Safe BLE write function
 function sendBLE(msg) {
-  if(bleChar && bleDevice && bleDevice.gatt.connected) {
+  if (bleChar && bleDevice && bleDevice.gatt.connected) {
     try {
       bleChar.writeValue(new TextEncoder().encode(msg + '\n'));
     } catch(e) {
       console.warn('Write failed:', e);
     }
-  } else {
-    console.warn('BLE not ready yet');
   }
 }
 
